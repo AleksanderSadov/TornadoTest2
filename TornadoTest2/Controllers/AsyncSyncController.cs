@@ -5,15 +5,15 @@
     // - Консюмер вызывает ReadBlock синхронно с таймаутом
     public class AsyncSyncController
     {
-        private readonly int _blockSize;
+        private readonly int _blockSize; // размер одного блока в байтах; определяет фиксированную длину каждого поступающего/читаемого блока
         private readonly byte[][] _buffer; // массив блоков
-        private readonly int _capacity;
+        private readonly int _capacity; // ёмкость буфера в блоках (максимальное число блоков, которые можно хранить)
         private int _head; // следующая позиция для записи (продюсер)
         private int _tail; // следующая позиция для чтения (консюмер)
         private int _count; // количество занятых блоков в буфере; используется для проверки пустоты/полноты и быстрого пути чтения
-        private readonly object _lock = new object();
-        private readonly AutoResetEvent _dataAvailable = new AutoResetEvent(false);
-        private long _droppedBlocks;
+        private readonly object _lock = new object(); // синхронизации для защиты критических секций (защищает _head/_tail/_count и операции копирования)
+        private readonly AutoResetEvent _dataAvailable = new AutoResetEvent(false); // событие для сигнализации о появлении новых данных; консююмер ожидает его с таймаутом
+        private long _droppedBlocks; // счётчик отброшенных блоков при переполнении; инкрементируется атомарно через Interlocked
 
         public AsyncSyncController(int blockSize, int capacityBlocks)
         {
