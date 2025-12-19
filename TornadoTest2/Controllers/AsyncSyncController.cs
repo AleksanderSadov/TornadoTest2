@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading;
-
-namespace TornadoTest2.Controllers
+﻿namespace TornadoTest2.Controllers
 {
     // Простой контроллер для блоков фиксированного размера
     // - Продюсер вызывает OnDataReceived из контекста прерывания/callback (должно быть быстро)
@@ -13,7 +10,7 @@ namespace TornadoTest2.Controllers
         private readonly int _capacity;
         private int _head; // следующая позиция для записи (продюсер)
         private int _tail; // следующая позиция для чтения (консюмер)
-        private int _count;
+        private int _count; // количество занятых блоков в буфере; используется для проверки пустоты/полноты и быстрого пути чтения
         private readonly object _lock = new object();
         private readonly AutoResetEvent _dataAvailable = new AutoResetEvent(false);
         private long _droppedBlocks;
@@ -65,11 +62,7 @@ namespace TornadoTest2.Controllers
             {
                 if (_count > 0)
                 {
-                    var result = new byte[_blockSize];
-                    Buffer.BlockCopy(_buffer[_tail], 0, result, 0, _blockSize);
-                    _tail = (_tail + 1) % _capacity;
-                    _count--;
-                    return result;
+                    return DequeueLocked();
                 }
             }
 
@@ -82,12 +75,18 @@ namespace TornadoTest2.Controllers
             {
                 if (_count == 0)
                     throw new TimeoutException();
-                var result = new byte[_blockSize];
-                Buffer.BlockCopy(_buffer[_tail], 0, result, 0, _blockSize);
-                _tail = (_tail + 1) % _capacity;
-                _count--;
-                return result;
+                return DequeueLocked();
             }
+        }
+
+        // Извлекает один блок из буфера. Предполагается, что вызов происходит под lock(_lock).
+        private byte[] DequeueLocked()
+        {
+            var result = new byte[_blockSize];
+            Buffer.BlockCopy(_buffer[_tail], 0, result, 0, _blockSize);
+            _tail = (_tail + 1) % _capacity;
+            _count--;
+            return result;
         }
 
         public int AvailableBlocks
