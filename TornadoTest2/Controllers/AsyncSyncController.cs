@@ -1,18 +1,18 @@
-using System;
+п»їusing System;
 using System.Threading;
 
 namespace TornadoTest2.Controllers
 {
-    // Простой контроллер для блоков фиксированного размера
-    // - Продюсер вызывает OnDataReceived из контекста прерывания/callback (должно быть быстро)
-    // - Консюмер вызывает ReadBlock синхронно с таймаутом
+    // РџСЂРѕСЃС‚РѕР№ РєРѕРЅС‚СЂРѕР»Р»РµСЂ РґР»СЏ Р±Р»РѕРєРѕРІ С„РёРєСЃРёСЂРѕРІР°РЅРЅРѕРіРѕ СЂР°Р·РјРµСЂР°
+    // - РџСЂРѕРґСЋСЃРµСЂ РІС‹Р·С‹РІР°РµС‚ OnDataReceived РёР· РєРѕРЅС‚РµРєСЃС‚Р° РїСЂРµСЂС‹РІР°РЅРёСЏ/callback (РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ Р±С‹СЃС‚СЂРѕ)
+    // - РљРѕРЅСЃСЋРјРµСЂ РІС‹Р·С‹РІР°РµС‚ ReadBlock СЃРёРЅС…СЂРѕРЅРЅРѕ СЃ С‚Р°Р№РјР°СѓС‚РѕРј
     public class AsyncSyncController
     {
         private readonly int _blockSize;
-        private readonly byte[][] _buffer; // массив блоков
+        private readonly byte[][] _buffer; // РјР°СЃСЃРёРІ Р±Р»РѕРєРѕРІ
         private readonly int _capacity;
-        private int _head; // следующая позиция для записи (продюсер)
-        private int _tail; // следующая позиция для чтения (консюмер)
+        private int _head; // СЃР»РµРґСѓСЋС‰Р°СЏ РїРѕР·РёС†РёСЏ РґР»СЏ Р·Р°РїРёСЃРё (РїСЂРѕРґСЋСЃРµСЂ)
+        private int _tail; // СЃР»РµРґСѓСЋС‰Р°СЏ РїРѕР·РёС†РёСЏ РґР»СЏ С‡С‚РµРЅРёСЏ (РєРѕРЅСЃСЋРјРµСЂ)
         private int _count;
         private readonly object _lock = new object();
         private readonly AutoResetEvent _dataAvailable = new AutoResetEvent(false);
@@ -32,35 +32,35 @@ namespace TornadoTest2.Controllers
             _droppedBlocks = 0;
         }
 
-        // Вызывается продюсером (прерывание/callback). Должно выполняться быстро. Копирует входной блок фиксированного размера в кольцевой буфер.
+        // Р’С‹Р·С‹РІР°РµС‚СЃСЏ РїСЂРѕРґСЋСЃРµСЂРѕРј (РїСЂРµСЂС‹РІР°РЅРёРµ/callback). Р”РѕР»Р¶РЅРѕ РІС‹РїРѕР»РЅСЏС‚СЊСЃСЏ Р±С‹СЃС‚СЂРѕ. РљРѕРїРёСЂСѓРµС‚ РІС…РѕРґРЅРѕР№ Р±Р»РѕРє С„РёРєСЃРёСЂРѕРІР°РЅРЅРѕРіРѕ СЂР°Р·РјРµСЂР° РІ РєРѕР»СЊС†РµРІРѕР№ Р±СѓС„РµСЂ.
         public void OnDataReceived(byte[] block)
         {
             if (block == null) return;
-            if (block.Length != _blockSize) return; // простая проверка
+            if (block.Length != _blockSize) return; // РїСЂРѕСЃС‚Р°СЏ РїСЂРѕРІРµСЂРєР°
 
             lock (_lock)
             {
                 if (_count == _capacity)
                 {
-                    // Буфер полон — отбрасываем самый старый блок, чтобы освободить место (простая политика).
+                    // Р‘СѓС„РµСЂ РїРѕР»РѕРЅ вЂ” РѕС‚Р±СЂР°СЃС‹РІР°РµРј СЃР°РјС‹Р№ СЃС‚Р°СЂС‹Р№ Р±Р»РѕРє, С‡С‚РѕР±С‹ РѕСЃРІРѕР±РѕРґРёС‚СЊ РјРµСЃС‚Рѕ (РїСЂРѕСЃС‚Р°СЏ РїРѕР»РёС‚РёРєР°).
                     _tail = (_tail + 1) % _capacity;
                     _count--;
                     Interlocked.Increment(ref _droppedBlocks);
                 }
 
-                // копирование в buffer[_head]
+                // РєРѕРїРёСЂРѕРІР°РЅРёРµ РІ buffer[_head]
                 Buffer.BlockCopy(block, 0, _buffer[_head], 0, _blockSize);
                 _head = (_head + 1) % _capacity;
                 _count++;
-                // сигнализируем консюмеру, что данные доступны
+                // СЃРёРіРЅР°Р»РёР·РёСЂСѓРµРј РєРѕРЅСЃСЋРјРµСЂСѓ, С‡С‚Рѕ РґР°РЅРЅС‹Рµ РґРѕСЃС‚СѓРїРЅС‹
                 _dataAvailable.Set();
             }
         }
 
-        // Синхронное чтение одного блока. Бросает TimeoutException, если данные не пришли в течение таймаута.
+        // РЎРёРЅС…СЂРѕРЅРЅРѕРµ С‡С‚РµРЅРёРµ РѕРґРЅРѕРіРѕ Р±Р»РѕРєР°. Р‘СЂРѕСЃР°РµС‚ TimeoutException, РµСЃР»Рё РґР°РЅРЅС‹Рµ РЅРµ РїСЂРёС€Р»Рё РІ С‚РµС‡РµРЅРёРµ С‚Р°Р№РјР°СѓС‚Р°.
         public byte[] ReadBlock(int timeoutMs)
         {
-            // быстрый путь (данные уже есть)
+            // Р±С‹СЃС‚СЂС‹Р№ РїСѓС‚СЊ (РґР°РЅРЅС‹Рµ СѓР¶Рµ РµСЃС‚СЊ)
             lock (_lock)
             {
                 if (_count > 0)
@@ -73,11 +73,11 @@ namespace TornadoTest2.Controllers
                 }
             }
 
-            // ожидаем данных
+            // РѕР¶РёРґР°РµРј РґР°РЅРЅС‹С…
             if (!_dataAvailable.WaitOne(timeoutMs))
                 throw new TimeoutException();
 
-            // после ожидания повторяем попытку
+            // РїРѕСЃР»Рµ РѕР¶РёРґР°РЅРёСЏ РїРѕРІС‚РѕСЂСЏРµРј РїРѕРїС‹С‚РєСѓ
             lock (_lock)
             {
                 if (_count == 0)
