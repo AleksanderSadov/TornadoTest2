@@ -40,7 +40,7 @@
                 if (_count == _capacity)
                 {
                     // Буфер полон — отбрасываем самый старый блок, чтобы освободить место (простая политика).
-                    _tail = (_tail + 1) % _capacity;
+                    _tail = (_tail + 1) % _capacity; // % долгая операция в критичном коде, но для _capacity в степенях двойки компилятор может оптимизировать это в битовую маску: https://www.downtowndougbrown.com/2013/01/microcontrollers-interrupt-safe-ring-buffers/ . Пока не проверял, но зафиксировал инфу
                     _count--;
                     Interlocked.Increment(ref _droppedBlocks);
                 }
